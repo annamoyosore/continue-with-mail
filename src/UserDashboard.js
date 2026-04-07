@@ -1,78 +1,78 @@
 import { useEffect, useState } from "react";
-import { google } from "googleapis";
 
-export default function UserDashboard({ user }) {
+export default function UserDashboard({ userEmail, tokens }) {
   const [emails, setEmails] = useState([]);
   const [selectedEmail, setSelectedEmail] = useState(null);
 
+  // Base64 decode helper
+  const decodeBase64 = (str) => {
+    return decodeURIComponent(atob(str.replace(/-/g, "+").replace(/_/g, "/")).split('').map(function(c) {
+      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+  };
+
+  // Fetch emails from Gmail API using fetch + token
   const fetchEmails = async () => {
-    const auth = new google.auth.OAuth2(
-      process.env.REACT_APP_GOOGLE_CLIENT_ID,
-      process.env.REACT_APP_GOOGLE_CLIENT_SECRET
-    );
+    if (!tokens?.access_token) return;
 
-    auth.setCredentials(user.tokens);
-
-    const gmail = google.gmail({ version: "v1", auth });
-
-    const list = await gmail.users.messages.list({
-      userId: "me",
-      maxResults: 10
-    });
-
-    const results = [];
-
-    for (const msg of list.data.messages || []) {
-      const m = await gmail.users.messages.get({
-        userId: "me",
-        id: msg.id,
-        format: "full"
-      });
-
-      const headers = m.data.payload.headers;
-      const subject = headers.find(h => h.name === "Subject")?.value;
-      const from = headers.find(h => h.name === "From")?.value;
-
-      // Extract HTML body
-      const getBody = (parts) => {
-        for (const part of parts || []) {
-          if (part.mimeType === "text/html" && part.body.data) {
-            return atob(part.body.data.replace(/-/g, "+").replace(/_/g, "/"));
-          } else if (part.parts) {
-            const inner = getBody(part.parts);
-            if (inner) return inner;
+    try {
+      const listRes = await fetch(
+        "https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=10",
+        {
+          headers: {
+            Authorization: `Bearer ${tokens.access_token}`
           }
         }
-        return "No content";
-      };
+      );
+      const listData = await listRes.json();
+      const results = [];
 
-      const body = getBody(m.data.payload.parts);
+      for (const msg of listData.messages || []) {
+        const msgRes = await fetch(
+          `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=full`,
+          {
+            headers: { Authorization: `Bearer ${tokens.access_token}` }
+          }
+        );
+        const msgData = await msgRes.json();
+        const headers = msgData.payload.headers;
+        const subject = headers.find(h => h.name === "Subject")?.value || "(No Subject)";
+        const from = headers.find(h => h.name === "From")?.value || "(Unknown)";
 
-      results.push({ subject, from, body });
-    }
+        const getBody = (parts) => {
+          for (const part of parts || []) {
+            if (part.mimeType === "text/html" && part.body.data) {
+              return decodeBase64(part.body.data);
+            } else if (part.parts) {
+              const inner = getBody(part.parts);
+              if (inner) return inner;
+            }
+          }
+          return "<p>No content</p>";
+        };
 
-    setEmails(results);
-    if (!selectedEmail && results.length > 0) {
-      setSelectedEmail(results[0]);
+        const body = msgData.payload.parts ? getBody(msgData.payload.parts) : "<p>No content</p>";
+
+        results.push({ subject, from, body });
+      }
+
+      setEmails(results);
+      if (!selectedEmail && results.length > 0) setSelectedEmail(results[0]);
+    } catch (err) {
+      console.error("Error fetching emails:", err);
     }
   };
 
   useEffect(() => {
     fetchEmails();
-    const i = setInterval(fetchEmails, 10000);
-    return () => clearInterval(i);
+    const interval = setInterval(fetchEmails, 10000); // refresh every 10 sec
+    return () => clearInterval(interval);
   }, []);
 
   return (
-    <div style={{ display: "flex", height: "100vh", fontFamily: "Arial" }}>
-
+    <div style={{ display: "flex", height: "100vh", fontFamily: "Arial, sans-serif" }}>
       {/* Sidebar */}
-      <div style={{
-        width: "220px",
-        background: "#fff",
-        borderRight: "1px solid #ddd",
-        padding: "10px"
-      }}>
+      <div style={{ width: "220px", background: "#fff", borderRight: "1px solid #ddd", padding: "10px" }}>
         <h3>📧 Gmail Clone</h3>
         <div style={{ padding: "8px", cursor: "pointer" }}>Inbox</div>
         <div style={{ padding: "8px", cursor: "pointer" }}>Sent</div>
@@ -80,12 +80,7 @@ export default function UserDashboard({ user }) {
       </div>
 
       {/* Email List */}
-      <div style={{
-        width: "300px",
-        borderRight: "1px solid #ddd",
-        overflowY: "auto",
-        background: "#f9f9f9"
-      }}>
+      <div style={{ width: "300px", borderRight: "1px solid #ddd", overflowY: "auto", background: "#f9f9f9" }}>
         {emails.map((e, i) => (
           <div
             key={i}
@@ -98,9 +93,7 @@ export default function UserDashboard({ user }) {
             }}
           >
             <b>{e.from}</b>
-            <div style={{ fontSize: "14px", color: "#555" }}>
-              {e.subject}
-            </div>
+            <div style={{ fontSize: "14px", color: "#555" }}>{e.subject}</div>
           </div>
         ))}
       </div>
@@ -111,16 +104,12 @@ export default function UserDashboard({ user }) {
           <>
             <h2>{selectedEmail.subject}</h2>
             <p><b>From:</b> {selectedEmail.from}</p>
-            <div
-              style={{ marginTop: "20px" }}
-              dangerouslySetInnerHTML={{ __html: selectedEmail.body }}
-            />
+            <div dangerouslySetInnerHTML={{ __html: selectedEmail.body }} />
           </>
         ) : (
           <p>Select an email</p>
         )}
       </div>
-
     </div>
   );
 }
