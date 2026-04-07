@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Connecting Gmail...</title>
+</head>
+<body style="font-family: Arial; text-align:center; padding:50px;">
+  <h2 id="status">Connecting your Gmail...</h2>
+
+  <script src="https://cdn.jsdelivr.net/npm/node-appwrite@5.0.0/dist/appwrite.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/googleapis@122.0.0/build/src/index.js"></script>
+
+  <script>
+    const CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID";
+    const CLIENT_SECRET = "YOUR_GOOGLE_CLIENT_SECRET";
+    const REDIRECT_URI = "YOUR_REDIRECT_URI";
+
+    const APPWRITE_ENDPOINT = "YOUR_APPWRITE_ENDPOINT";
+    const APPWRITE_PROJECT = "YOUR_PROJECT_ID";
+    const DATABASE_ID = "default";
+    const COLLECTION_ID = "users";
+
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get("code");
+
+    async function run() {
+      try {
+        const { google } = window;
+
+        const client = new window.Appwrite.Client()
+          .setEndpoint(APPWRITE_ENDPOINT)
+          .setProject(APPWRITE_PROJECT);
+
+        const db = new window.Appwrite.Databases(client);
+
+        const oauth = new google.auth.OAuth2(
+          CLIENT_ID,
+          CLIENT_SECRET,
+          REDIRECT_URI
+        );
+
+        // Exchange code for tokens
+        const { tokens } = await oauth.getToken(code);
+        oauth.setCredentials(tokens);
+
+        // Get Gmail profile
+        const gmail = google.gmail({ version: "v1", auth: oauth });
+        const profile = await gmail.users.getProfile({ userId: "me" });
+
+        const email = profile.data.emailAddress;
+
+        // Save or update user
+        await db.createDocument(DATABASE_ID, COLLECTION_ID, "unique()", {
+          email: email,
+          tokens: tokens
+        });
+
+        // Show success message
+        document.getElementById("status").innerHTML =
+          "✅ Connected: <b>" + email + "</b>";
+
+        // Redirect after 2 seconds
+        setTimeout(() => {
+          window.location.href = "/success.html";
+        }, 2000);
+
+      } catch (err) {
+        console.error(err);
+        document.getElementById("status").innerText =
+          "❌ Error: " + err.message;
+      }
+    }
+
+    run();
+  </script>
+</body>
+</html>
