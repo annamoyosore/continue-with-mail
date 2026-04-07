@@ -1,0 +1,15 @@
+{
+  "name": "gmail-admin-web",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "react-scripts": "5.0.1",
+    "node-appwrite": "^5.0.0",
+    "googleapis": "^122.0.0"
+  },
+  "scripts": {
+    "start": "react-scripts start"
+  }
+}
