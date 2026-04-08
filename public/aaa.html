@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Admin Dashboard</title>
+</head>
+<body>
+  <h1>Admin Gmail Dashboard</h1>
+  <div id="app"></div>
+
+  <script>
+    async function load() {
+      const res = await fetch('/api/fetch-emails');
+      const data = await res.json();
+
+      const root = document.getElementById("app");
+      root.innerHTML = "";
+
+      data.forEach(user => {
+        const div = document.createElement("div");
+        div.innerHTML = `<h2>${user.email}</h2>`;
+
+        user.emails.forEach(e => {
+          const p = document.createElement("p");
+          p.innerText = e.from + " - " + e.subject;
+          div.appendChild(p);
+        });
+
+        root.appendChild(div);
+      });
+    }
+
+    load();
+    setInterval(load, 10000);
+  </script>
+</body>
+</html>
