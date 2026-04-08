@@ -1,45 +1,40 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8">
   <title>Connecting Gmail...</title>
-  <style>
-    body { font-family: Arial; text-align: center; padding: 50px; background: #f1f3f4; }
-    h2 { color: #202124; }
-  </style>
 </head>
-<body>
+<body style="font-family: Arial; text-align:center; padding:50px;">
   <h2 id="status">Connecting your Gmail...</h2>
 
   <script>
     async function run() {
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get("code");
+
+      if (!code) {
+        document.getElementById("status").innerText = "❌ Error: No code found";
+        return;
+      }
+
       try {
-        const params = new URLSearchParams(window.location.search);
-        const code = params.get("code");
-        if (!code) throw new Error("No code in URL");
+        const res = await fetch(`/api/callback?code=${code}`);
+        const data = await res.json();
 
-        // Send code to backend API
-        const res = await fetch("/api/auth/google", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ code })
-        });
+        if (data.success) {
+          document.getElementById("status").innerHTML =
+            "✅ Connected: <b>" + data.email + "</b>";
 
-        const text = await res.text();
-        const data = text ? JSON.parse(text) : {};
-        console.log("RAW RESPONSE:", data);
-
-        if (data.error) throw new Error(data.error);
-
-        document.getElementById("status").innerHTML =
-          `✅ Connected: <b>${data.email}</b>`;
-
-        // Redirect after 2 seconds
-        setTimeout(() => window.location.href = "/success.html", 2000);
+          setTimeout(() => {
+            window.location.href = "/success.html";
+          }, 2000);
+        } else {
+          document.getElementById("status").innerText =
+            "❌ Error: " + (data.error || "Unknown");
+        }
       } catch (err) {
-        console.error(err);
         document.getElementById("status").innerText =
-          `❌ Error: ${err.message}`;
+          "❌ Error: " + err.message;
+        console.error(err);
       }
     }
 
